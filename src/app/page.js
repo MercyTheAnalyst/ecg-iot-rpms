@@ -1,103 +1,198 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useState, useEffect } from "react";
+import { Heart, Activity, TrendingUp, Clock, RefreshCw } from "lucide-react";
+import { getPatientDashboard, getPatientRecords } from "@/lib/api";
+import StatCard from "@/components/StatCard";
+import AlertBadge from "@/components/AlertBadge";
+import ECGChart from "@/components/ECGChart";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorMessage from "@/components/ErrorMessage";
+import { formatDate, getRhythmColor } from "@/lib/utils";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+const PATIENT_ID = process.env.NEXT_PUBLIC_PATIENT_ID || "PT001";
+
+export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [dashboard, setDashboard] = useState(null);
+  const [recentRecord, setRecentRecord] = useState(null);
+  const [error, setError] = useState(null);
+
+  const fetchDashboard = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      const [dashboardData, recordsData] = await Promise.all([
+        getPatientDashboard(PATIENT_ID),
+        getPatientRecords(PATIENT_ID, 1),
+      ]);
+
+      setDashboard(dashboardData);
+      if (recordsData.records && recordsData.records.length > 0) {
+        setRecentRecord(recordsData.records[0]);
+      }
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching dashboard:", err);
+      setError("Failed to load dashboard data. Please check your connection.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboard();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => fetchDashboard(true), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return <LoadingSpinner />;
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <ErrorMessage message={error} onRetry={() => fetchDashboard()} />
+      </div>
+    );
+  }
+
+  if (!dashboard || !dashboard.currentData) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="card border-2 border-yellow-200 bg-yellow-50">
+          <p className="text-yellow-800">
+            No data available for patient {PATIENT_ID}. Waiting for ESP32 to
+            send data...
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      </div>
+    );
+  }
+
+  const { currentData, statistics, recentAlerts } = dashboard;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Patient Dashboard
+          </h1>
+          <p className="text-gray-600 mt-2">Patient ID: {PATIENT_ID}</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Last updated: {formatDate(currentData.timestamp)}
+          </p>
+        </div>
+        <button
+          onClick={() => fetchDashboard(true)}
+          disabled={refreshing}
+          className="btn-primary flex items-center gap-2"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+          <RefreshCw
+            className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          Refresh
+        </button>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          title="Current Heart Rate"
+          value={`${currentData.heartRate} BPM`}
+          icon={Heart}
+          subtitle={
+            <span className={getRhythmColor(currentData.rhythm)}>
+              {currentData.rhythm}
+            </span>
+          }
+        />
+
+        <StatCard
+          title="Average Heart Rate"
+          value={`${statistics.averageHeartRate} BPM`}
+          icon={Activity}
+        />
+
+        <StatCard
+          title="Min / Max HR"
+          value={`${statistics.minHeartRate} / ${statistics.maxHeartRate}`}
+          icon={TrendingUp}
+          subtitle="BPM"
+        />
+
+        <StatCard
+          title="Total Records"
+          value={statistics.totalRecords}
+          icon={Clock}
+        />
+      </div>
+
+      {/* ECG Waveform */}
+      {recentRecord &&
+        recentRecord.ecgSamples &&
+        recentRecord.ecgSamples.length > 0 && (
+          <div className="mb-8">
+            <ECGChart data={recentRecord.ecgSamples} />
+          </div>
+        )}
+
+      {/* Rhythm Distribution */}
+      {statistics.rhythmDistribution &&
+        Object.keys(statistics.rhythmDistribution).length > 0 && (
+          <div className="card mb-8">
+            <h2 className="text-xl font-semibold mb-4">Rhythm Distribution</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Object.entries(statistics.rhythmDistribution).map(
+                ([rhythm, count]) => (
+                  <div
+                    key={rhythm}
+                    className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200"
+                  >
+                    <p className="text-3xl font-bold text-gray-900">{count}</p>
+                    <p className={`text-sm mt-1 ${getRhythmColor(rhythm)}`}>
+                      {rhythm}
+                    </p>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+      {/* Recent Alerts */}
+      {recentAlerts && recentAlerts.length > 0 && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Recent Alerts</h2>
+            <span className="text-sm text-gray-500">
+              {recentAlerts.length} alert{recentAlerts.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {recentAlerts.map((alert, index) => (
+              <AlertBadge key={alert._id || index} alert={alert} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {recentAlerts && recentAlerts.length === 0 && (
+        <div className="card border-2 border-green-200 bg-green-50">
+          <p className="text-green-800 text-center">
+            ✓ No alerts - All vitals within normal range
+          </p>
+        </div>
+      )}
     </div>
   );
 }
