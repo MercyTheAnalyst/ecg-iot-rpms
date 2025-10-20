@@ -5,7 +5,7 @@ import { Heart, Activity, TrendingUp, Clock, RefreshCw } from 'lucide-react';
 import { getPatientDashboard, getPatientRecords } from '@/lib/api';
 import StatCard from '@/components/StatCard';
 import AlertBadge from '@/components/AlertBadge';
-import RealTimeECGChart from '@/components/RealTimeECGChart';
+import RealTimeECGChart from '@/components/RealtimeECGChart';
 import ECGIntervalsCard from '@/components/ECGIntervalsCard';
 import ECGChart from '@/components/ECGChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
