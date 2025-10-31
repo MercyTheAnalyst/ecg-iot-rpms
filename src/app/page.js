@@ -11,6 +11,7 @@ import ECGChart from '@/components/ECGChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import { formatDate, getRhythmColor } from '@/lib/utils';
+import BlockchainBadge from '@/components/BlockchainBadge';
 
 const PATIENT_ID = process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001';
 
@@ -93,6 +94,13 @@ export default function EnhancedDashboard() {
           <p className='text-sm text-gray-500 mt-1'>
             Last updated: {formatDate(currentData.timestamp)}
           </p>
+
+          <div className='mt-2'>
+            <BlockchainBadge
+              status={currentData.blockchainStored ? 'stored' : 'pending'}
+              size='md'
+            />
+          </div>
         </div>
         <button
           onClick={() => fetchDashboard(true)}

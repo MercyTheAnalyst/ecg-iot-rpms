@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Heart, Activity, Bell, BarChart3 } from 'lucide-react';
+import { Heart, Activity, Bell, BarChart3, Shield } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -54,6 +54,16 @@ export default function Navbar() {
             >
               <BarChart3 className='h-5 w-5' />
               <span className='hidden sm:inline'>Records</span>
+            </Link>
+             
+            <Link
+              href='/blockchain'
+              className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${isActive(
+                '/blockchain'
+              )}`}
+            >
+              <Shield className='h-5 w-5' />
+              <span className='hidden sm:inline'>Blockchain</span>
             </Link>
           </div>
         </div>
