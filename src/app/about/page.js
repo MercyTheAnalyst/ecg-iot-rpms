@@ -71,7 +71,7 @@ export default function AboutPage() {
       <div className='text-center mb-16'>
         <div className='inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-6'>
           <BookOpen className='h-4 w-4' />
-          Master&apos;s Research Project
+          Master&apos;s Research Project turned Startup
         </div>
         <h1 className='text-4xl font-bold text-gray-900 mb-4 leading-tight'>
           Blockchain-Enabled IoT Framework for
