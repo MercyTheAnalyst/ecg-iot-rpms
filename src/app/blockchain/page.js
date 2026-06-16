@@ -37,7 +37,7 @@ export default function BlockchainPage() {
 
   if (loading) return <LoadingSpinner />;
 
-  const isBlockchainConnected = health?.blockchain === 'connected';
+  const isBlockchainConnected = health?.blockchainEnabled === true;
 
   return (
     <div className='max-w-7xl mx-auto px-4 py-8'>
