@@ -2,12 +2,22 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Activity, Wifi, WifiOff } from 'lucide-react';
+import { usePatient } from '@/lib/PatientContext';
 
 const MAX_DATA_POINTS = 400; // 2 seconds at 200Hz
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://192.168.1.6:3001/ws';
-const PATIENT_ID = process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001';
+// FIX: was `ws://192.168.1.6:3001/ws` as the fallback — an unreachable LAN
+// address using the insecure ws:// scheme. If NEXT_PUBLIC_WS_URL isn't set
+// in the deployed env, this silently fails: browsers block ws:// connections
+// initiated from an https:// page (mixed content), so the chart would show
+// "Offline" with no console error explaining why. Default to the real,
+// working wss:// endpoint instead.
+const WS_URL =
+  process.env.NEXT_PUBLIC_WS_URL || 'wss://server.mercyoyebode.me/ws';
 
 export default function RealTimeECGChart() {
+  // FIX: was a hardcoded `process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001'`.
+  const { patientID, loading: patientLoading } = usePatient();
+
   const [ecgData, setEcgData] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [currentHR, setCurrentHR] = useState(0);
@@ -15,22 +25,25 @@ export default function RealTimeECGChart() {
   const wsRef = useRef(null);
 
   useEffect(() => {
-    // Connect to WebSocket
+    if (patientLoading || !patientID) return;
+
+    let cancelled = false;
+
     const connectWebSocket = () => {
       try {
         const ws = new WebSocket(WS_URL);
         wsRef.current = ws;
 
         ws.onopen = () => {
+          if (cancelled) return;
           console.log('✓ WebSocket connected');
           setIsConnected(true);
 
-          // Send handshake
           ws.send(
             JSON.stringify({
               type: 'connect',
-              patientID: PATIENT_ID,
-            })
+              patientID,
+            }),
           );
         };
 
@@ -38,11 +51,9 @@ export default function RealTimeECGChart() {
           try {
             const data = JSON.parse(event.data);
 
-            // Handle real-time ECG stream
             if (data.type === 'stream') {
               setEcgData((prev) => {
                 const newData = [...prev, data.value];
-                // Keep only last MAX_DATA_POINTS
                 if (newData.length > MAX_DATA_POINTS) {
                   return newData.slice(-MAX_DATA_POINTS);
                 }
@@ -66,27 +77,24 @@ export default function RealTimeECGChart() {
         ws.onclose = () => {
           console.log('❌ WebSocket disconnected');
           setIsConnected(false);
-
-          // Reconnect after 3 seconds
-          setTimeout(connectWebSocket, 3000);
+          if (!cancelled) setTimeout(connectWebSocket, 3000);
         };
       } catch (err) {
         console.error('Failed to connect WebSocket:', err);
-        setTimeout(connectWebSocket, 3000);
+        if (!cancelled) setTimeout(connectWebSocket, 3000);
       }
     };
 
     connectWebSocket();
 
-    // Cleanup
     return () => {
+      cancelled = true;
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, []);
+  }, [patientID, patientLoading]);
 
-  // Draw ECG waveform on canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || ecgData.length === 0) return;
@@ -95,15 +103,12 @@ export default function RealTimeECGChart() {
     const width = canvas.width;
     const height = canvas.height;
 
-    // Clear canvas
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw grid (like ECG paper)
     ctx.strokeStyle = '#1a3a1a';
     ctx.lineWidth = 0.5;
 
-    // Vertical lines
     for (let x = 0; x < width; x += 20) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -111,7 +116,6 @@ export default function RealTimeECGChart() {
       ctx.stroke();
     }
 
-    // Horizontal lines
     for (let y = 0; y < height; y += 20) {
       ctx.beginPath();
       ctx.moveTo(0, y);
@@ -119,17 +123,16 @@ export default function RealTimeECGChart() {
       ctx.stroke();
     }
 
-    // Draw ECG waveform
     ctx.strokeStyle = '#00ff00';
     ctx.lineWidth = 2;
     ctx.beginPath();
 
     const xStep = width / MAX_DATA_POINTS;
-    const yScale = height / 4096; // ESP32 ADC range
+    const yScale = height / 4096;
 
     ecgData.forEach((value, index) => {
       const x = index * xStep;
-      const y = height - value * yScale; // Invert Y axis
+      const y = height - value * yScale;
 
       if (index === 0) {
         ctx.moveTo(x, y);
@@ -150,7 +153,6 @@ export default function RealTimeECGChart() {
         </div>
 
         <div className='flex items-center gap-4'>
-          {/* Heart Rate Display */}
           <div className='text-right'>
             <div className='text-2xl font-bold text-primary'>
               {currentHR > 0 ? currentHR : '--'}
@@ -158,7 +160,6 @@ export default function RealTimeECGChart() {
             <div className='text-xs text-gray-500'>BPM</div>
           </div>
 
-          {/* Connection Status */}
           <div
             className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm ${
               isConnected
@@ -181,7 +182,6 @@ export default function RealTimeECGChart() {
         </div>
       </div>
 
-      {/* Canvas for ECG waveform */}
       <div className='bg-black rounded-lg border-2 border-gray-700 overflow-hidden'>
         <canvas
           ref={canvasRef}
@@ -194,7 +194,7 @@ export default function RealTimeECGChart() {
 
       <div className='mt-2 text-xs text-gray-500 text-center'>
         {isConnected ? (
-          <span>Real-time ECG streaming from ESP32</span>
+          <span>Real-time ECG streaming from ESP32 — patient {patientID}</span>
         ) : (
           <span>Waiting for connection... Make sure ESP32 is powered on</span>
         )}

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Heart, Activity, Bell, BarChart3, Shield, Info } from 'lucide-react';
+import PatientSelector from './PatientSelector';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -20,8 +21,10 @@ export default function Navbar() {
           <div className='flex items-center'>
             <Heart className='h-8 w-8 text-primary mr-2' />
             <span className='text-xl font-bold text-gray-900'>ECG Monitor</span>
-            <span className='ml-3 text-xs bg-primary text-white px-2 py-1 rounded'>
-              PT001
+            {/* FIX: was a hardcoded "PT001" span. Now shows whichever patient
+                is currently active, and lets staff start a new session. */}
+            <span className='ml-3'>
+              <PatientSelector />
             </span>
           </div>
 
@@ -29,7 +32,7 @@ export default function Navbar() {
             <Link
               href='/'
               className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${isActive(
-                '/'
+                '/',
               )}`}
             >
               <Activity className='h-5 w-5' />
@@ -39,7 +42,7 @@ export default function Navbar() {
             <Link
               href='/alerts'
               className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${isActive(
-                '/alerts'
+                '/alerts',
               )}`}
             >
               <Bell className='h-5 w-5' />
@@ -49,7 +52,7 @@ export default function Navbar() {
             <Link
               href='/records'
               className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${isActive(
-                '/records'
+                '/records',
               )}`}
             >
               <BarChart3 className='h-5 w-5' />
@@ -59,7 +62,7 @@ export default function Navbar() {
             <Link
               href='/blockchain'
               className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${isActive(
-                '/blockchain'
+                '/blockchain',
               )}`}
             >
               <Shield className='h-5 w-5' />
@@ -68,7 +71,7 @@ export default function Navbar() {
             <Link
               href='/about'
               className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${isActive(
-                '/about'
+                '/about',
               )}`}
             >
               <Info className='h-5 w-5' />

@@ -1,26 +1,28 @@
-// app/blockchain/page.js (NEW FILE)
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Shield, CheckCircle, Server, Clock, TrendingUp } from 'lucide-react';
 import { getSystemHealth, getBlockchainRecords } from '@/lib/api';
-import BlockchainBadge from '@/components/BlockchainBadge';
+import { usePatient } from '@/lib/PatientContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import Link from 'next/link';
 
-const PATIENT_ID = process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001';
-
 export default function BlockchainPage() {
+  // FIX: was a hardcoded `process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001'`.
+  const { patientID, loading: patientLoading } = usePatient();
+
   const [health, setHealth] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (patientLoading || !patientID) return;
+
     async function fetchData() {
       try {
         const [healthData, blockchainData] = await Promise.all([
           getSystemHealth(),
-          getBlockchainRecords(PATIENT_ID),
+          getBlockchainRecords(patientID),
         ]);
 
         setHealth(healthData);
@@ -33,9 +35,9 @@ export default function BlockchainPage() {
     }
 
     fetchData();
-  }, []);
+  }, [patientID, patientLoading]);
 
-  if (loading) return <LoadingSpinner />;
+  if (loading || patientLoading) return <LoadingSpinner />;
 
   const isBlockchainConnected = health?.blockchainEnabled === true;
 
@@ -47,7 +49,8 @@ export default function BlockchainPage() {
           Blockchain Integration
         </h1>
         <p className='text-gray-600 mt-2'>
-          Immutable data storage powered by Hyperledger Fabric
+          Immutable data storage powered by Hyperledger Fabric — patient{' '}
+          {patientID}
         </p>
       </div>
 
@@ -167,7 +170,11 @@ export default function BlockchainPage() {
                     {record.recordID}
                   </p>
                   <p className='text-xs text-gray-500 mt-1'>
-                    {new Date(record.timestamp).toLocaleString()}
+                    {/* FIX: chaincode stores timestamp as a STRING of epoch
+                        ms (e.g. "1782165281855"). new Date(thatString) does
+                        NOT parse as epoch millis and renders "Invalid Date".
+                        Must convert to a Number first. */}
+                    {new Date(Number(record.timestamp)).toLocaleString()}
                   </p>
                 </div>
                 <div className='flex items-center gap-4'>

@@ -1,29 +1,32 @@
-// app/records/page.js (UPDATED)
 'use client';
 
 import { useState, useEffect } from 'react';
 import { BarChart3, RefreshCw, Activity, Shield } from 'lucide-react';
 import { getPatientRecords } from '@/lib/api';
-import BlockchainBadge from '@/components/BlockchainBadge'; // 🆕 NEW
+import { usePatient } from '@/lib/PatientContext';
+import BlockchainBadge from '@/components/BlockchainBadge';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import { formatDate, getRhythmColor } from '@/lib/utils';
-import Link from 'next/link'; // 🆕 NEW
-
-const PATIENT_ID = process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001';
+import Link from 'next/link';
 
 export default function Records() {
+  // FIX: was a hardcoded `process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001'`.
+  // Now reflects whichever patient is currently active session-wide.
+  const { patientID, loading: patientLoading } = usePatient();
+
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchRecords = async (isRefresh = false) => {
+    if (!patientID) return;
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
-      const data = await getPatientRecords(PATIENT_ID, 50);
+      const data = await getPatientRecords(patientID, 50);
       setRecords(data.records || []);
       setError(null);
     } catch (err) {
@@ -36,12 +39,14 @@ export default function Records() {
   };
 
   useEffect(() => {
+    if (patientLoading) return;
     fetchRecords();
     const interval = setInterval(() => fetchRecords(true), 30000);
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientID, patientLoading]);
 
-  if (loading) return <LoadingSpinner />;
+  if (loading || patientLoading) return <LoadingSpinner />;
   if (error) {
     return (
       <div className='max-w-7xl mx-auto px-4 py-8'>
@@ -60,7 +65,7 @@ export default function Records() {
           </h1>
           <p className='text-gray-600 mt-2'>
             {records.length} record{records.length !== 1 ? 's' : ''} for patient{' '}
-            {PATIENT_ID}
+            {patientID}
           </p>
         </div>
 
@@ -97,7 +102,6 @@ export default function Records() {
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Rhythm
                   </th>
-                  {/* 🆕 NEW COLUMN */}
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Blockchain
                   </th>
@@ -123,21 +127,21 @@ export default function Records() {
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <span
                         className={`text-sm font-medium ${getRhythmColor(
-                          record.rhythm
+                          record.rhythm,
                         )}`}
                       >
                         {record.rhythm}
                       </span>
                     </td>
-                    {/* 🆕 NEW CELL */}
                     <td className='px-6 py-4 whitespace-nowrap'>
+                      {/* FIX: schema field is `blockchainStored` (Boolean),
+                          not `blockchainHash`. The old check could never be
+                          true, so this column always showed "MongoDB Only"
+                          even for records that were genuinely on-chain. */}
                       <BlockchainBadge
-                        status={
-                          record.blockchainHash === 'stored' ? 'stored' : 'none'
-                        }
+                        status={record.blockchainStored ? 'stored' : 'none'}
                       />
                     </td>
-                    {/* 🆕 NEW CELL */}
                     <td className='px-6 py-4 whitespace-nowrap text-sm'>
                       <Link
                         href={`/verify/${record.recordID}`}
