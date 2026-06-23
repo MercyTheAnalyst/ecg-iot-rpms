@@ -2,7 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Heart, Activity, Bell, BarChart3, Shield, Info } from 'lucide-react';
+import {
+  Heart,
+  Activity,
+  Bell,
+  BarChart3,
+  Shield,
+  Info,
+  ClipboardList,
+} from 'lucide-react';
 import PatientSelector from './PatientSelector';
 
 export default function Navbar() {
@@ -57,6 +65,16 @@ export default function Navbar() {
             >
               <BarChart3 className='h-5 w-5' />
               <span className='hidden sm:inline'>Records</span>
+            </Link>
+
+            <Link
+              href='/captures'
+              className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${isActive(
+                '/captures',
+              )}`}
+            >
+              <ClipboardList className='h-5 w-5' />
+              <span className='hidden sm:inline'>Captures</span>
             </Link>
 
             <Link

@@ -131,4 +131,25 @@ export const getSystemHealth = async () => {
   }
 };
 
+/**
+ * Get 10-reading captures for a patient (most recent first).
+ * Each capture includes the raw readings AND server-computed stats
+ * (min/max/mean/range/SD/SE) per field — same definitions as the trial
+ * workbook, computed once on the backend so dashboard and export agree.
+ * @param {string} patientID
+ * @param {number} limit
+ * @returns {Promise<Object>} { success, patientID, count, captures }
+ */
+export const getCaptures = async (patientID, limit = 20) => {
+  try {
+    const response = await api.get(`/captures/${patientID}`, {
+      params: { limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch captures:', error);
+    throw error;
+  }
+};
+
 export default api;
