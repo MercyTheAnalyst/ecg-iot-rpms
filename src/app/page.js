@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Heart, Activity, TrendingUp, Clock, RefreshCw } from 'lucide-react';
 import { getPatientDashboard, getPatientRecords } from '@/lib/api';
+import { usePatient } from '@/lib/PatientContext';
 import StatCard from '@/components/StatCard';
 import AlertBadge from '@/components/AlertBadge';
 import RealTimeECGChart from '@/components/RealtimeECGChart';
@@ -13,9 +14,14 @@ import ErrorMessage from '@/components/ErrorMessage';
 import { formatDate, getRhythmColor } from '@/lib/utils';
 import BlockchainBadge from '@/components/BlockchainBadge';
 
-const PATIENT_ID = process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001';
-
 export default function EnhancedDashboard() {
+  // FIX: was a hardcoded `process.env.NEXT_PUBLIC_PATIENT_ID || 'PT001'`.
+  // This was the cause of the dashboard showing "Patient ID: PT001" and
+  // stale PT001 data even after switching the active patient on the navbar
+  // — every other page had already been switched to usePatient(), this one
+  // (the main dashboard) was the one file still on the old pattern.
+  const { patientID, loading: patientLoading } = usePatient();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboard, setDashboard] = useState(null);
@@ -23,6 +29,7 @@ export default function EnhancedDashboard() {
   const [error, setError] = useState(null);
 
   const fetchDashboard = async (isRefresh = false) => {
+    if (!patientID) return;
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -31,8 +38,8 @@ export default function EnhancedDashboard() {
       }
 
       const [dashboardData, recordsData] = await Promise.all([
-        getPatientDashboard(PATIENT_ID),
-        getPatientRecords(PATIENT_ID, 1),
+        getPatientDashboard(patientID),
+        getPatientRecords(patientID, 1),
       ]);
 
       setDashboard(dashboardData);
@@ -50,14 +57,16 @@ export default function EnhancedDashboard() {
   };
 
   useEffect(() => {
+    if (patientLoading) return;
     fetchDashboard();
 
     // Auto-refresh every 30 seconds
     const interval = setInterval(() => fetchDashboard(true), 30000);
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientID, patientLoading]);
 
-  if (loading) return <LoadingSpinner />;
+  if (loading || patientLoading) return <LoadingSpinner />;
 
   if (error) {
     return (
@@ -72,8 +81,8 @@ export default function EnhancedDashboard() {
       <div className='max-w-7xl mx-auto px-4 py-8'>
         <div className='card border-2 border-yellow-200 bg-yellow-50'>
           <p className='text-yellow-800'>
-            No data available for patient {PATIENT_ID}. Waiting for ESP32 to
-            send data...
+            No data available for patient {patientID}. Waiting for ESP32 to send
+            data...
           </p>
         </div>
       </div>
@@ -90,12 +99,15 @@ export default function EnhancedDashboard() {
           <h1 className='text-3xl font-bold text-gray-900'>
             Enhanced Patient Dashboard
           </h1>
-          <p className='text-gray-600 mt-2'>Patient ID: {PATIENT_ID}</p>
+          <p className='text-gray-600 mt-2'>Patient ID: {patientID}</p>
           <p className='text-sm text-gray-500 mt-1'>
             Last updated: {formatDate(currentData.timestamp)}
           </p>
 
           <div className='mt-2'>
+            {/* FIX: backend now actually returns blockchainStored on
+                currentData (it never did before, so this always showed
+                "pending" regardless of real status). */}
             <BlockchainBadge
               status={currentData.blockchainStored ? 'stored' : 'pending'}
               size='md'
@@ -133,6 +145,9 @@ export default function EnhancedDashboard() {
           icon={Activity}
         />
 
+        {/* FIX: backend now computes and returns minHeartRate/maxHeartRate
+            (it never did before — these fields didn't exist, hence
+            "undefined / undefined"). */}
         <StatCard
           title='Min / Max HR'
           value={`${statistics.minHeartRate} / ${statistics.maxHeartRate}`}
@@ -140,6 +155,9 @@ export default function EnhancedDashboard() {
           subtitle='BPM'
         />
 
+        {/* FIX: backend now uses countDocuments() for the TRUE total,
+            instead of records.length after a .limit(100) (which could
+            never read above 100, regardless of the real count). */}
         <StatCard
           title='Total Records'
           value={statistics.totalRecords}
@@ -191,7 +209,7 @@ export default function EnhancedDashboard() {
                       {rhythm}
                     </p>
                   </div>
-                )
+                ),
               )}
             </div>
           </div>
