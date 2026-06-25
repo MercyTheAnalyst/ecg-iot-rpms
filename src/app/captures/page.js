@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ClipboardList, RefreshCw } from 'lucide-react';
-import { getCaptures } from '@/lib/api';
+import { ClipboardList, RefreshCw, Play } from 'lucide-react';
+import { getCaptures, triggerCapture } from '@/lib/api';
 import { usePatient } from '@/lib/PatientContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -111,6 +111,9 @@ export default function CapturesPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [triggering, setTriggering] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [triggerError, setTriggerError] = useState(null);
 
   const fetchCaptures = async (isRefresh = false) => {
     if (!patientID) return;
@@ -119,7 +122,15 @@ export default function CapturesPage() {
       else setLoading(true);
 
       const data = await getCaptures(patientID, 20);
-      setCaptures(data.captures || []);
+      const newCaptures = data.captures || [];
+      setCaptures((prev) => {
+        // If we were waiting on a triggered capture and a new one just
+        // appeared, the device finished — clear the pending state.
+        if (pending && newCaptures.length > prev.length) {
+          setPending(false);
+        }
+        return newCaptures;
+      });
       setError(null);
     } catch (err) {
       console.error('Error fetching captures:', err);
@@ -130,13 +141,35 @@ export default function CapturesPage() {
     }
   };
 
+  const handleTriggerCapture = async () => {
+    setTriggering(true);
+    setTriggerError(null);
+    try {
+      await triggerCapture();
+      setPending(true);
+    } catch (err) {
+      console.error('Failed to trigger capture:', err);
+      setTriggerError(
+        err?.response?.data?.message ||
+          'Failed to start capture — is a patient session active?',
+      );
+    } finally {
+      setTriggering(false);
+    }
+  };
+
   useEffect(() => {
     if (patientLoading) return;
     fetchCaptures();
-    const interval = setInterval(() => fetchCaptures(true), 15000);
+    // Poll faster (5s) while waiting on a triggered capture so it appears
+    // promptly; back off to the normal 15s cadence otherwise.
+    const interval = setInterval(
+      () => fetchCaptures(true),
+      pending ? 5000 : 15000,
+    );
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientID, patientLoading]);
+  }, [patientID, patientLoading, pending]);
 
   if (loading || patientLoading) return <LoadingSpinner />;
   if (error) {
@@ -149,7 +182,7 @@ export default function CapturesPage() {
 
   return (
     <div className='max-w-7xl mx-auto px-4 py-8'>
-      <div className='flex items-center justify-between mb-8 flex-wrap gap-4'>
+      <div className='flex items-center justify-between mb-4 flex-wrap gap-4'>
         <div>
           <h1 className='text-3xl font-bold text-gray-900 flex items-center gap-2'>
             <ClipboardList className='h-8 w-8 text-primary' />
@@ -161,23 +194,56 @@ export default function CapturesPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => fetchCaptures(true)}
-          disabled={refreshing}
-          className='btn-primary flex items-center gap-2'
-        >
-          <RefreshCw
-            className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
-          />
-          Refresh
-        </button>
+        <div className='flex items-center gap-2'>
+          <button
+            onClick={handleTriggerCapture}
+            disabled={triggering || pending}
+            className='btn-primary flex items-center gap-2 disabled:opacity-60'
+            title="Equivalent to pressing 'c' in the device's serial monitor"
+          >
+            <Play className='h-4 w-4' />
+            {pending
+              ? 'Capturing…'
+              : triggering
+                ? 'Requesting…'
+                : 'Start Capture'}
+          </button>
+          <button
+            onClick={() => fetchCaptures(true)}
+            disabled={refreshing}
+            className='btn-primary flex items-center gap-2'
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+            />
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {triggerError && (
+        <div className='card border-2 border-red-200 bg-red-50 mb-6'>
+          <p className='text-red-800 text-sm'>{triggerError}</p>
+        </div>
+      )}
+
+      {pending && (
+        <div className='card border-2 border-blue-200 bg-blue-50 mb-6'>
+          <p className='text-blue-800 text-sm'>
+            Capture requested — the device will pick this up within a few
+            seconds. Keep the patient still and contact firm. This page will
+            update automatically once the 10 readings are recorded (typically
+            ~30-60s).
+          </p>
+        </div>
+      )}
 
       {captures.length === 0 ? (
         <div className='card border-2 border-yellow-200 bg-yellow-50'>
           <p className='text-yellow-800 text-center'>
-            No captures yet for this patient. On the device, type <code>c</code>{' '}
-            in the serial monitor once it&apos;s calibrated and reading
+            No captures yet for this patient. Click{' '}
+            <strong>Start Capture</strong> above, or type <code>c</code> in the
+            device&apos;s serial monitor once it&apos;s calibrated and reading
             steadily.
           </p>
         </div>

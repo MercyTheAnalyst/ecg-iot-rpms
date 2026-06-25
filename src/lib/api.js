@@ -152,4 +152,21 @@ export const getCaptures = async (patientID, limit = 20) => {
   }
 };
 
+/**
+ * Request a 10-reading capture from the web dashboard, equivalent to
+ * pressing 'c' in the device's serial monitor. The device picks this up
+ * within ~4 seconds via its capture-trigger poll.
+ * @returns {Promise<Object>} { success, patientID } or an error if no
+ * active patient session exists yet.
+ */
+export const triggerCapture = async () => {
+  try {
+    const response = await api.post('/capture/request');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to trigger capture:', error);
+    throw error;
+  }
+};
+
 export default api;
